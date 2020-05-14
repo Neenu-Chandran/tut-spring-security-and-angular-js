@@ -1,234 +1,126 @@
-The API Gateway
-In this section we continue our discussion of how to use Spring Security with Angular in a "single page application". Here we show how to build an API Gateway to control the authentication and access to the backend resources using Spring Cloud. This is the fourth in a series of sections, and you can catch up on the basic building blocks of the application or build it from scratch by reading the first section, or you can just go straight to the source code in Github. In the last section we built a simple distributed application that used Spring Session to authenticate the backend resources. In this one we make the UI server into a reverse proxy to the backend resource server, fixing the issues with the last implementation (technical complexity introduced by custom token authentication), and giving us a lot of new options for controlling access from the browser client.
+<!-- Generated automatically, DO NOT EDIT! -->
+<a name="head.Device_Identification_API"></a>
+# Device Identification API
 
-Reminder: if you are working through this section with the sample application, be sure to clear your browser cache of cookies and HTTP Basic credentials. In Chrome the best way to do that for a single server is to open a new incognito window.
+**Version: 1.0**
 
-Creating an API Gateway
-An API Gateway is a single point of entry (and control) for front end clients, which could be browser based (like the examples in this section) or mobile. The client only has to know the URL of one server, and the backend can be refactored at will with no change, which is a significant advantage. There are other advantages in terms of centralization and control: rate limiting, authentication, auditing and logging. And implementing a simple reverse proxy is really simple with Spring Cloud.
+**Status: :black_circle::white_circle::white_circle:**
 
-If you were following along in the code, you will know that the application implementation at the end of the last section was a bit complicated, so it’s not a great place to iterate away from. There was, however, a halfway point which we could start from more easily, where the backend resource wasn’t yet secured with Spring Security. The source code for this is a separate project in Github so we are going to start from there. It has a UI server and a resource server and they are talking to each other. The resource server doesn’t have Spring Security yet so we can get the system working first and then add that layer.
+DeviceIdentification plugin for Thunder framework.
 
-Declarative Reverse Proxy in One Line
-To turn it into an API Gateway, the UI server needs one small tweak. Somewhere in the Spring configuration we need to add an @EnableZuulProxy annotation, e.g. in the main (only) application class:
+### Table of Contents
 
-UiApplication.java
-@SpringBootApplication
-@RestController
-@EnableZuulProxy
-public class UiApplication {
-  ...
-}
-and in an external configuration file we need to map a local resource in the UI server to a remote one in the external configuration ("application.yml"):
+- [Introduction](#head.Introduction)
+- [Description](#head.Description)
+- [Configuration](#head.Configuration)
+- [Properties](#head.Properties)
 
-application.yml
-security:
-  ...
-zuul:
-  routes:
-    resource:
-      path: /resource/**
-      url: http://localhost:9000
-This says "map paths with the pattern /resource/** in this server to the same paths in the remote server at localhost:9000". Simple and yet effective (OK so it’s 6 lines including the YAML, but you don’t always need that)!
+<a name="head.Introduction"></a>
+# Introduction
 
-All we need to make this work is the right stuff on the classpath. For that purpose we have a few new lines in our Maven POM:
+<a name="head.Scope"></a>
+## Scope
 
-pom.xml
-<dependencyManagement>
-  <dependencies>
-    <dependency>
-      <groupId>org.springframework.cloud</groupId>
-      <artifactId>spring-cloud-dependencies</artifactId>
-      <version>Dalston.SR4</version>
-      <type>pom</type>
-      <scope>import</scope>
-    </dependency>
-  </dependencies>
-</dependencyManagement>
+This document describes purpose and functionality of the DeviceIdentification plugin. It includes detailed specification of its configuration and properties provided.
 
-<dependencies>
-  <dependency>
-    <groupId>org.springframework.cloud</groupId>
-    <artifactId>spring-cloud-starter-zuul</artifactId>
-  </dependency>
-  ...
-</dependencies>
-Note the use of the "spring-cloud-starter-zuul" - it’s a starter POM just like the Spring Boot ones, but it governs the dependencies we need for this Zuul proxy. We are also using <dependencyManagement> because we want to be able to depend on all the versions of transitive dependencies being correct.
+<a name="head.Case_Sensitivity"></a>
+## Case Sensitivity
 
-Consuming the Proxy in the Client
-With those changes in place our application still works, but we haven’t actually used the new proxy yet until we modify the client. Fortunately that’s trivial. We just need to revert the change we made going from the "single" to the "vanilla" samples in the last section:
+All identifiers on the interface described in this document are case-sensitive. Thus, unless stated otherwise, all keywords, entities, properties, relations and actions should be treated as such.
 
-home.component.ts
-constructor(private app: AppService, private http: HttpClient) {
-  http.get('resource').subscribe(data => this.greeting = data);
-}
-Now when we fire up the servers everything is working and the requests are being proxied through the UI (API Gateway) to the resource server.
+<a name="head.Acronyms,_Abbreviations_and_Terms"></a>
+## Acronyms, Abbreviations and Terms
 
-Further Simplifications
-Even better: we don’t need the CORS filter any more in the resource server. We threw that one together pretty quickly anyway, and it should have been a red light that we had to do anything as technically focused by hand (especially where it concerns security). Fortunately it is now redundant, so we can just throw it away, and go back to sleeping at night!
+The table below provides and overview of acronyms used in this document and their definitions.
 
-Securing the Resource Server
-You might remember in the intermediate state that we started from there is no security in place for the resource server.
+| Acronym | Description |
+| :-------- | :-------- |
+| <a name="acronym.API">API</a> | Application Programming Interface |
+| <a name="acronym.HTTP">HTTP</a> | Hypertext Transfer Protocol |
+| <a name="acronym.JSON">JSON</a> | JavaScript Object Notation; a data interchange format |
+| <a name="acronym.JSON-RPC">JSON-RPC</a> | A remote procedure call protocol encoded in JSON |
 
-Aside: Lack of software security might not even be a problem if your network architecture mirrors the application architecture (you can just make the resource server physically inaccessible to anyone but the UI server). As a simple demonstration of that we can make the resource server only accessible on localhost. Just add this to application.properties in the resource server:
+The table below provides and overview of terms and abbreviations used in this document and their definitions.
 
-application.properties
-server.address: 127.0.0.1
-Wow, that was easy! Do that with a network address that’s only visible in your data center and you have a security solution that works for all resource servers and all user desktops.
+| Term | Description |
+| :-------- | :-------- |
+| <a name="term.callsign">callsign</a> | The name given to an instance of a plugin. One plugin can be instantiated multiple times, but each instance the instance name, callsign, must be unique. |
 
-Suppose that we decide we do need security at the software level (quite likely for a number of reasons). That’s not going to be a problem, because all we need to do is add Spring Security as a dependency (in the resource server POM):
+<a name="head.References"></a>
+## References
 
-pom.xml
-<dependency>
-  <groupId>org.springframework.boot</groupId>
-  <artifactId>spring-boot-starter-security</artifactId>
-</dependency>
-That’s enough to get us a secure resource server, but it won’t get us a working application yet, for the same reason that it didn’t in Part III: there is no shared authentication state between the two servers.
+| Ref ID | Description |
+| :-------- | :-------- |
+| <a name="ref.HTTP">[HTTP](http://www.w3.org/Protocols)</a> | HTTP specification |
+| <a name="ref.JSON-RPC">[JSON-RPC](https://www.jsonrpc.org/specification)</a> | JSON-RPC 2.0 specification |
+| <a name="ref.JSON">[JSON](http://www.json.org/)</a> | JSON specification |
+| <a name="ref.Thunder">[Thunder](https://github.com/WebPlatformForEmbedded/Thunder/blob/master/doc/WPE%20-%20API%20-%20WPEFramework.docx)</a> | Thunder API Reference |
 
-Sharing Authentication State
-We can use the same mechanism to share authentication (and CSRF) state as we did in the last, i.e. Spring Session. We add the dependency to both servers as before:
+<a name="head.Description"></a>
+# Description
 
-pom.xml
-<dependency>
-  <groupId>org.springframework.session</groupId>
-  <artifactId>spring-session</artifactId>
-</dependency>
-<dependency>
-  <groupId>org.springframework.boot</groupId>
-  <artifactId>spring-boot-starter-redis</artifactId>
-</dependency>
-but this time the configuration is much simpler because we can just add the same Filter declaration to both. First the UI server, declaring explicitly that we want all headers to be forwarded (i.e. none are "sensitive"):
+DeviceIdentification JSON-RPC interface
 
-application.yml
-zuul:
-  routes:
-    resource:
-      sensitive-headers:
-Then we can move on to the resource server. There are two small changes to make: one is to explicitly disable HTTP Basic in the resource server (to prevent the browser from popping up authentication dialogs):
+The plugin is designed to be loaded and executed within the Thunder framework. For more information about the framework refer to [[Thunder](#ref.Thunder)].
 
-ResourceApplication.java
-@SpringBootApplication
-@RestController
-class ResourceApplication extends WebSecurityConfigurerAdapter {
+<a name="head.Configuration"></a>
+# Configuration
 
-  ...
+The table below lists configuration options of the plugin.
 
-  @Override
-  protected void configure(HttpSecurity http) throws Exception {
-    http.httpBasic().disable();
-    http.authorizeRequests().anyRequest().authenticated();
-  }
+| Name | Type | Description |
+| :-------- | :-------- | :-------- |
+| classname | string | Class name: *DeviceIdentification* |
+| autostart | boolean | Determines if the plugin is to be started automatically along with the framework |
 
-}
-Aside: an alternative, which would also prevent the authentication dialog, would be to keep HTTP Basic but change the 401 challenge to something other than "Basic". You can do that with a one-line implementation of AuthenticationEntryPoint in the HttpSecurity configuration callback.
+<a name="head.Properties"></a>
+# Properties
 
-and the other is to explicitly ask for a non-stateless session creation policy in application.properties:
+The following properties are provided by the DeviceIdentification plugin:
 
-application.properties
-security.sessions: NEVER
-As long as redis is still running in the background (use the docker-compose.yml if you like to start it) then the system will work. Load the homepage for the UI at http://localhost:8080 and login and you will see the message from the backend rendered on the homepage.
+DeviceIdentification interface properties:
 
-How Does it Work?
-What is going on behind the scenes now? First we can look at the HTTP requests in the UI server (and API Gateway):
+| Property | Description |
+| :-------- | :-------- |
+| [deviceidentification](#property.deviceidentification) <sup>RO</sup> | Device paltform specific information |
 
-Verb	Path	Status	Response
-GET
+<a name="property.deviceidentification"></a>
+## *deviceidentification <sup>property</sup>*
 
-/
+Provides access to the device paltform specific information.
 
-200
+> This property is **read-only**.
 
-index.html
+### Value
 
-GET
+| Name | Type | Description |
+| :-------- | :-------- | :-------- |
+| (property) | object | Device paltform specific information |
+| (property).firmwareversion | string | Version of the device firmware |
+| (property).chipset | string | Chipset used for this device |
+| (property)?.identifier | string | <sup>*(optional)*</sup> Device unique identifier |
 
-/*.js
+### Example
 
-200
+#### Get Request
 
-Assets form angular
-
-GET
-
-/user
-
-401
-
-Unauthorized (ignored)
-
-GET
-
-/resource
-
-401
-
-Unauthenticated access to resource
-
-GET
-
-/user
-
-200
-
-JSON authenticated user
-
-GET
-
-/resource
-
-200
-
-(Proxied) JSON greeting
-
-That’s identical to the sequence at the end of Part II except for the fact that the cookie names are slightly different ("SESSION" instead of "JSESSIONID") because we are using Spring Session. But the architecture is different and that last request to "/resource" is special because it was proxied to the resource server.
-
-We can see the reverse proxy in action by looking at the "/trace" endpoint in the UI server (from Spring Boot Actuator, which we added with the Spring Cloud dependencies). Go to http://localhost:8080/trace in a new browser (if you don’t have one already get a JSON plugin for your browser to make it nice and readable). You will need to authenticate with HTTP Basic (browser popup), but the same credentials are valid as for your login form. At or near the start you should see a pair of requests something like this:
-
-Note
-Try to use a different browser so that there is no chance of authentication crossover (e.g. use Firefox if yoused Chrome for testing the UI) - it won’t stop the app from working, but it will make the traces harder to read if they contain a mixture of authentication from the same browser.
-/trace
+```json
 {
-  "timestamp": 1420558194546,
-  "info": {
-    "method": "GET",
-    "path": "/",
-    "query": ""
-    "remote": true,
-    "proxy": "resource",
-    "headers": {
-      "request": {
-        "accept": "application/json, text/plain, */*",
-        "x-xsrf-token": "542c7005-309c-4f50-8a1d-d6c74afe8260",
-        "cookie": "SESSION=c18846b5-f805-4679-9820-cd13bd83be67; XSRF-TOKEN=542c7005-309c-4f50-8a1d-d6c74afe8260",
-        "x-forwarded-prefix": "/resource",
-        "x-forwarded-host": "localhost:8080"
-      },
-      "response": {
-        "Content-Type": "application/json;charset=UTF-8",
-        "status": "200"
-      }
-    },
-  }
-},
+    "jsonrpc": "2.0",
+    "id": 1234567890,
+    "method": "DeviceIdentification.1.deviceidentification"
+}
+```
+#### Get Response
+
+```json
 {
-  "timestamp": 1420558200232,
-  "info": {
-    "method": "GET",
-    "path": "/resource/",
-    "headers": {
-      "request": {
-        "host": "localhost:8080",
-        "accept": "application/json, text/plain, */*",
-        "x-xsrf-token": "542c7005-309c-4f50-8a1d-d6c74afe8260",
-        "cookie": "SESSION=c18846b5-f805-4679-9820-cd13bd83be67; XSRF-TOKEN=542c7005-309c-4f50-8a1d-d6c74afe8260"
-      },
-      "response": {
-        "Content-Type": "application/json;charset=UTF-8",
-        "status": "200"
-      }
+    "jsonrpc": "2.0",
+    "id": 1234567890,
+    "result": {
+        "firmwareversion": "1.0.0",
+        "chipset": "BCM2711",
+        "identifier": ""
     }
-  }
-},
-The second entry there is the request from the client to the gateway on "/resource" and you can see the cookies (added by the browser) and the CSRF header (added by Angular as discussed in Part II). The first entry has remote: true and that means it’s tracing the call to the resource server. You can see it went out to a uri path "/" and you can see that (crucially) the cookies and CSRF headers have been sent too. Without Spring Session these headers would be meaningless to the resource server, but the way we have set it up it can now use those headers to re-constitute a session with authentication and CSRF token data. So the request is permitted and we are in business!
-
-Conclusion
-We covered quite a lot in this section but we got to a really nice place where there is a minimal amount of boilerplate code in our two servers, they are both nicely secure and the user experience isn’t compromised. That alone would be a reason to use the API Gateway pattern, but really we have only scratched the surface of what that might be used for (Netflix uses it for a lot of things). Read up on Spring Cloud to find out more on how to make it easy to add more features to the gateway. The next section in this series will extend the application architecture a bit by extracting the authentication responsibilities to a separate server (the Single Sign On pattern).
+}
+```
